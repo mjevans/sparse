@@ -147,7 +147,8 @@ end_args:
 			exit(ii_seek_i);
 		}
 		((char *)buf)[0] = '\0';
-		fwrite(buf, 1, 1, f_out); // Write '\0' as the very last byte.
+		ii_count_o = fwrite(buf, 1, 1, f_out); // Write '\0' as the very last byte.
+		if (!ii_count_o) fprintf(f_err, "Warning: Couldn't write final zero byte to pad the end of file.\n");
 	}
 #ifdef DEBUG
 	fprintf(stderr, "Final %ld\t: %ld vs\n      %ld\t: %ld\n", ii_seek_i, ftell(f_in), ii_seek_o, ftell(f_out));
