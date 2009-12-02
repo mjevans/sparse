@@ -123,7 +123,27 @@ end_args:
 				break;
 			}
 		}
-		if (!md_copy) ii_seek_o += ii_count_i;
+		if (!md_copy) {
+			if (ii_seek_o + ii_count_i < ii_seek_max) {
+				ii_seek_o += ii_count_i;
+			} else {
+				if ( ii_count_o = fseek(f_out, ii_seek_max - 1, SEEK_SET) ) {
+					ii_seek_i = errno;
+					fprintf(stderr, "Could not seek to %ld: %s: %ld\n", ii_seek_o, strerror(errno), ii_count_o);
+					exit(ii_seek_i);
+				}
+				ii_count_o = fwrite(buf, 1, 1, f_out);
+				if (!ii_count_o) fprintf(stderr, "Write error for last 0-byte section.");
+				ii_seek_o = ii_seek_o + ii_count_i - ii_seek_max;
+				fclose(f_out);
+				f_out = my_fopen(*argv, "w");
+				argv++;
+				if (arg_sizeList != NULL) // AKA != 0
+					ii_seek_max = (size_t) strtoll(arg_sizeList, &arg_sizeList, 0);
+				if (arg_sizeList != NULL) // AKA != 0
+					arg_sizeList++;
+			}
+		}
 		while (md_copy) {
 			if (ii_seek_o + ii_count_i <= ii_seek_max) {
 				if ( ftell(f_out) != ii_seek_o && ( ii_count_o = fseek(f_out, ii_seek_o, SEEK_SET) ) ) {
