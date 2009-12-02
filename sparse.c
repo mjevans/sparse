@@ -33,13 +33,13 @@ main(int argc, char **argv) {
 	f_err = stderr;
 
 	// If 'split' -l is assumed.
-	if ( strncmp(&(argv[(strlen(*argv) - 6)]), "split", 5) ) arg_sizeList = (char *) -1;
+	if (strncmp(&((*argv)[(strlen(*argv) - 5)]),"split", 5) == 0) arg_sizeList = (char *) -1;
+#ifdef DEBUG
+	fprintf(stderr, "Arg: %s (%s)\n", *argv, &((*argv)[(strlen(*argv) - 5)]));
+#endif
 
 	for (argv++; argv[0][0] == '-'; argv++) {
 		arg = argv[0];
-#ifdef DEBUG
-		fprintf(stderr, "Arg: %s (%s)\n", arg, &(argv[(strlen(*argv) - 6)]));
-#endif
 		for (arg++; arg[0] != '\0'; arg++) {
 			switch (arg[0]) {
 			case 't': // don't seek in the file to create any pads.
@@ -107,7 +107,7 @@ end_args:
 	f_out = my_fopen(*argv, "w");
 	argv++;
 	if (arg_sizeList != NULL) // AKA != 0
-		ii_output_max = (size_t) strtoll(&(arg_sizeList), &arg_sizeList, 0);
+		ii_seek_max = (size_t) strtoll(arg_sizeList, &arg_sizeList, 0);
 	if (arg_sizeList != NULL) // AKA != 0
 		arg_sizeList++;
 	
@@ -157,7 +157,7 @@ end_args:
 				f_out = my_fopen(*argv, "w");
 				argv++;
 				if (arg_sizeList != NULL) // AKA != 0
-					ii_output_max = (size_t) strtoll(&(arg_sizeList), &arg_sizeList, 0);
+					ii_seek_max = (size_t) strtoll(arg_sizeList, &arg_sizeList, 0);
 				if (arg_sizeList != NULL) // AKA != 0
 					arg_sizeList++;
 				ii_seek_o = 0;
