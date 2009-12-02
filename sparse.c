@@ -113,10 +113,8 @@ end_args:
 	
 	while (!feof(f_in)) {
 		ii_count_i = fread(buf, md_block, 1, f_in) * md_block;
-		if (ii_count_i == 0) {
-			// If reading a full block fails, read up to a full block of bytes.
-			ii_count_i = fread(buf, 1, md_block, f_in);
-		}
+		if (ii_count_i == 0) // Didn't read all records, figure out the byte size the hard way.
+			ii_count_i = ftell(f_in) - ii_seek_i;
 		ii_seek_i += ii_count_i;
 		md_copy=0;	// Reuse md_copy as a state variable
 		for (ii_count_o = 0; ii_count_o < ii_count_i; ii_count_o++) {
@@ -136,7 +134,7 @@ end_args:
 				if ( ! ii_count_i % md_block ) {
 					ii_count_o = fwrite(buf, md_block, 1, f_out) * md_block;
 				} else {
-					ii_count_o = fwrite(buf, 1, md_block, f_out);
+					ii_count_o = fwrite(buf, 1, ii_count_i, f_out);
 				}
 				ii_seek_o += ii_count_o;
 			} else {
