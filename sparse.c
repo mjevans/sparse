@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+// for SIZE_MAX
+#include <stdint.h>
 
 #define DEBUG 1
 
@@ -22,14 +24,21 @@ int
 main(int argc, char **argv) {
 	char *arg, *arg_sizeList = 0;
 	short int md_copy = 0, md_block = 0, md_skipPad = 0;
-	size_t md_zeroSize = 0, ii_count_i = 0, ii_count_o = 0, ii_seek_i = 0, ii_seek_o = 0;
+	size_t md_zeroSize = 0, ii_count_i = 0, ii_count_o = 0, ii_seek_i = 0, ii_seek_o = 0, ii_seek_max = SIZE_MAX;
 	FILE *f_in, *f_out, *f_err;
 	void *buf;
+
+	f_in = stdin;
+	f_out = stdout;
 	f_err = stderr;
+
+	// If 'split' -l is assumed.
+	if ( strncmp(&(argv[(strlen(*argv) - 6)]), "split", 5) ) arg_sizeList = (char *) -1;
+
 	for (argv++; argv[0][0] == '-'; argv++) {
 		arg = argv[0];
 #ifdef DEBUG
-		fprintf(stderr, "Arg: %s\n", arg);
+		fprintf(stderr, "Arg: %s (%s)\n", arg, &(argv[(strlen(*argv) - 6)]));
 #endif
 		for (arg++; arg[0] != '\0'; arg++) {
 			switch (arg[0]) {
@@ -49,7 +58,6 @@ main(int argc, char **argv) {
 			case 'p': // coPy
 				md_copy = 1;
 				break;
-// List not yet supported
 			case 'l': // list (of sizes for each file argument in order)
 				arg_sizeList = (char *) -1; // Use first 'file' slot for this argument.
 				break;
@@ -66,10 +74,12 @@ main(int argc, char **argv) {
 		}
 	}
 end_args:
+
 	if (arg_sizeList == (char *) -1) {
 		arg_sizeList = *argv;
 		argv++;
 	}
+
 	// Arg processing done, open the files
 #ifdef DEBUG
 	fprintf(f_err, "Options: b=%x z=%lx copy=%d list=%s\n", md_block, md_zeroSize, md_copy, arg_sizeList);
@@ -93,45 +103,68 @@ end_args:
 		md_block = 1;
 		buf = &arg;
 	}
+
 	f_out = my_fopen(*argv, "w");
 	argv++;
+	if (arg_sizeList != NULL) // AKA != 0
+		ii_output_max = (size_t) strtoll(&(arg_sizeList), &arg_sizeList, 0);
+	if (arg_sizeList != NULL) // AKA != 0
+		arg_sizeList++;
+	
 	while (!feof(f_in)) {
-		ii_count_i = fread(buf, md_block, 1, f_in);
-		ii_seek_i += ii_count_i * md_block;
+		ii_count_i = fread(buf, md_block, 1, f_in) * md_block;
 		if (ii_count_i == 0) {
-			// How can we get here?
+			// If reading a full block fails, read up to a full block of bytes.
+			ii_count_i = fread(buf, 1, md_block, f_in);
 		}
+		ii_seek_i += ii_count_i;
 		md_copy=0;	// Reuse md_copy as a state variable
-		for (ii_count_o = 0; ii_count_o < (ii_count_i * md_block); ii_count_o++) {
+		for (ii_count_o = 0; ii_count_o < ii_count_i; ii_count_o++) {
 			if ( ((char *)buf)[ii_count_o] != '\0' ) {
 				md_copy=1;
 				break;
 			}
 		}
-		if (!md_copy) ii_seek_o += ii_count_i * md_block;
+		if (!md_copy) ii_seek_o += ii_count_i;
 		while (md_copy) {
-			if ( ftell(f_out) != ii_seek_o && ( ii_count_o = fseek(f_out, ii_seek_o, SEEK_SET) ) ) {
-				ii_seek_i = errno;
-				fprintf(stderr, "Could not seek to %ld: %s: %ld\n", ii_seek_o, strerror(errno), ii_count_o);
-				exit(ii_seek_i);
-			} 
-			ii_count_o = fwrite(buf, md_block, 1, f_out);
-			ii_seek_o += ii_count_o * md_block;
-			if (ii_count_o < ii_count_i) {
-				fprintf(stderr, "Could not write at in %ld out %ld: errno: %d = %s\n", ii_seek_i, ii_seek_o, errno, strerror(errno));
-				exit(1);
-/*				ii_count_i -= ii_count_o;
-				memmove(buf, (const void *) &( ((char *)buf) [ii_count_o]), ii_count_i);
+			if (ii_seek_o + ii_count_i <= ii_seek_max) {
+				if ( ftell(f_out) != ii_seek_o && ( ii_count_o = fseek(f_out, ii_seek_o, SEEK_SET) ) ) {
+					ii_seek_i = errno;
+					fprintf(stderr, "Could not seek to %ld: %s: %ld\n", ii_seek_o, strerror(errno), ii_count_o);
+					exit(ii_seek_i);
+				}
+				if ( ! ii_count_i % md_block ) {
+					ii_count_o = fwrite(buf, md_block, 1, f_out) * md_block;
+				} else {
+					ii_count_o = fwrite(buf, 1, md_block, f_out);
+				}
+				ii_seek_o += ii_count_o;
+			} else {
+				// Finish writing current file, shift the buffer allow the next loop to catch up.
+				ii_count_o = fwrite(buf, 1, ii_seek_max - ii_seek_o, f_out);
+				ii_seek_o += ii_count_o;
+			}
+			if (ferror(f_out)) {
+				// investigate and report error
 				if (!feof(f_out)) perror(*argv);
+				fprintf(stderr, "Could not write at in %ld out %ld: errno: %d = %s\n", ii_seek_i, ii_seek_o, errno, strerror(errno));
+				// exit(1);
+			}
+			if (ii_seek_o == ii_seek_max) {
+				ii_count_i -= ii_count_o;
+				memmove(buf, (const void *) &( ((char *)buf) [ii_count_o]), ii_count_i);
 				fclose(f_out);
 				f_out = my_fopen(*argv, "w");
 				argv++;
+				if (arg_sizeList != NULL) // AKA != 0
+					ii_output_max = (size_t) strtoll(&(arg_sizeList), &arg_sizeList, 0);
+				if (arg_sizeList != NULL) // AKA != 0
+					arg_sizeList++;
 				ii_seek_o = 0;
+				ii_count_o = 0;
 				md_copy = ii_count_i > 0;
-*/
-			} else {
-				md_copy = 0;
 			}
+			if (ii_count_o = ii_count_i) md_copy = 0;
 		}
 #ifdef DEBUG
 		if (ii_seek_o != ii_seek_i) {
