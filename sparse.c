@@ -191,7 +191,7 @@ end_args:
 
 		for (ii_buf_pos = 0 ; ii_buf_pos < ii_count_i; ii_buf_pos += ii_count_o) {
 			md_copy=0;	// Reuse md_copy as a state variable
-			for (ii_count_o = 0; ii_count_o < sz_output; ii_count_o++) {
+			for (ii_count_o = 0; ii_count_o < ii_count_i && ii_count_o < sz_output; ii_count_o++) {
 				if ( ((char *)buf)[ii_buf_pos + ii_count_o] != '\0' ) {
 					md_copy=1;
 					break;
