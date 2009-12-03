@@ -5,7 +5,17 @@
 // for SIZE_MAX
 #include <stdint.h>
 
-#define DEBUG 1
+// #define DEBUG 1
+
+/*
+gcc -o sparse sparse.c
+./sparse -o512i$((1024*1024))p sparse sparse.o ; diff sparse sparse.o ; echo $? ;
+./sparse -o512i64pl 512,768,4096 sparse sparse.1 sparse.2 sparse.3 sparse.4 sparse.5 sparse.6 sparse.7 sparse.8 sparse.9 ; cat sparse.[1-9] | diff sparse - ; echo $?
+./sparse -o512i65pl 512,768,4096 sparse sparse.1 sparse.2 sparse.3 sparse.4 sparse.5 sparse.6 sparse.7 sparse.8 sparse.9 ; cat sparse.[1-9] | diff sparse - ; echo $?
+./sparse -o513i64pl 512,768,4096 sparse sparse.1 sparse.2 sparse.3 sparse.4 sparse.5 sparse.6 sparse.7 sparse.8 sparse.9 ; cat sparse.[1-9] | diff sparse - ; echo $?
+ls -l
+rm sparse.o sparse.[1-9]
+*/
 
 FILE*
 my_fopen(const char *n, const char *m) {
@@ -21,11 +31,25 @@ my_fopen(const char *n, const char *m) {
 }
 
 int
+my_seekOrDie(FILE *f, size_t p, int w) {
+	int pos;
+	if ( pos = fseek(f, p, w) ) {
+		pos = errno;
+		fprintf(stderr, "Could not seek to %ld: %s\n",
+			p, strerror(errno));
+		exit(pos);
+	} else {
+		return pos;
+	}
+}
+
+int
 main(int argc, char **argv) {
 	char *arg, *arg_sizeList = 0;
 	short int md_copy = 0, md_skipPad = 0;
-	size_t sz_input = 0, sz_output = 0, ii_count_i = 0, ii_count_o = 0, ii_tmp
-		 ii_seek_i = 0, ii_seek_o = 0, ii_seek_max = SIZE_MAX, ii_buf_pos;
+	size_t sz_input = 0, sz_output = 0, ii_count_i = 0, ii_count_o = 0,
+		ii_seek_i = 0, ii_seek_o = 0, ii_seek_max = SIZE_MAX,
+		ii_buf_pos, ii_tmp, ii_write_len;
 	FILE *f_in, *f_out, *f_err;
 	void *buf;
 
@@ -43,18 +67,22 @@ main(int argc, char **argv) {
 		arg = argv[0];
 		for (arg++; arg[0] != '\0'; arg++) {
 			switch (arg[0]) {
-			case 't': // don't seek in the file to create any pads.
+			case 't': // truncate trailing zeros (don't write last sparse pad)
 				md_skipPad = 1;
 				break;
 			case 'i': // Max input buffer (default 512 if set)
 				sz_input = 512;
-				if (arg[1] >= '0' && arg[1] <= '9')
+				if (arg[1] >= '0' && arg[1] <= '9') {
 					sz_input = (size_t) strtoll(&(arg[1]), &arg, 0);
+					arg--;
+				}
 				break;
 			case 'o': // Max output buffer (1==special default to block)
 				sz_output = 1;
-				if (arg[1] >= '0' && arg[1] <= '9')
+				if (arg[1] >= '0' && arg[1] <= '9') {
 					sz_output = (size_t) strtoll(&(arg[1]), &arg, 0);
+					arg--;
+				}
 				break;
 			case 'p': // coPy
 				md_copy = 1;
@@ -106,11 +134,14 @@ end_args:
 		buf = &arg;
 	}
 
+#ifdef DEBUG
+	fprintf(f_err, "Opening output: %s\n", *argv);
+#endif
 	f_out = my_fopen(*argv, "w");
 	argv++;
-	if (arg_sizeList != NULL) // AKA != 0
+	if (arg_sizeList != NULL && *arg_sizeList != '\0') // AKA != 0
 		ii_seek_max = (size_t) strtoll(arg_sizeList, &arg_sizeList, 0);
-	if (arg_sizeList != NULL) // AKA != 0
+	if (arg_sizeList != NULL && *arg_sizeList != '\0') // AKA != 0
 		arg_sizeList++;
 	
 	while (!feof(f_in)) {
@@ -130,72 +161,69 @@ end_args:
 					break;
 				}
 			}
+			ii_write_len = ii_count_i - ii_buf_pos;
+			if (ii_write_len > sz_output) ii_write_len = sz_output;
 			if (!md_copy) {
-				if (ii_seek_o +
-						( ii_count_i - ii_buf_pos >= sz_output ?
-						 sz_output : ii_count_i - ii_buf_pos)
-					 	< ii_seek_max) {
+				if (ii_seek_o + ii_write_len < ii_seek_max) {
 					ii_seek_o += ii_count_i;
 				} else {
-					if ( ii_count_o = fseek(f_out, ii_seek_max - 1, SEEK_SET) ) {
-						ii_seek_i = errno;
-						fprintf(stderr, "Could not seek to %ld: %s: %ld\n", ii_seek_o, strerror(errno), ii_count_o);
-						exit(ii_seek_i);
-					}
+					my_seekOrDie(f_out, ii_seek_max - 1, SEEK_SET);
 					ii_count_o = fwrite(buf, 1, 1, f_out);
-					if (!ii_count_o) fprintf(stderr, "Write error for last 0-byte section.");
-					ii_seek_o = ii_seek_o + ii_count_i - ii_seek_max;
+					if (!ii_count_o)
+					  fprintf(stderr, "Write error for last 0-byte section of %s.", *(argv - 1));
+					ii_seek_o = ii_seek_o + ii_write_len - ii_seek_max;
 					fclose(f_out);
+#ifdef DEBUG
+	fprintf(f_err, "Opening output: %s\n", *argv);
+#endif
 					f_out = my_fopen(*argv, "w");
 					argv++;
-					if (arg_sizeList != NULL) // AKA != 0
+					if (arg_sizeList != NULL && *arg_sizeList != '\0') // AKA != 0
 						ii_seek_max = (size_t) strtoll(arg_sizeList, &arg_sizeList, 0);
-					if (arg_sizeList != NULL) // AKA != 0
+					if (arg_sizeList != NULL && *arg_sizeList != '\0') // AKA != 0
 						arg_sizeList++;
 				}
+				ii_count_o = ii_count_i;
 			}
-		while (md_copy) {
-			if (ii_seek_o + ii_count_i <= ii_seek_max) {
-				if ( ftell(f_out) != ii_seek_o && ( ii_count_o = fseek(f_out, ii_seek_o, SEEK_SET) ) ) {
-					ii_seek_i = errno;
-					fprintf(stderr, "Could not seek to %ld: %s: %ld\n", ii_seek_o, strerror(errno), ii_count_o);
-					exit(ii_seek_i);
-				}
-				if ( ! ii_count_i % sz_input ) {
-					ii_count_o = fwrite(buf, sz_input, 1, f_out) * sz_input;
+			while (md_copy) {
+				if (ii_seek_o + ii_write_len <= ii_seek_max) {
+					if ( ftell(f_out) != ii_seek_o )
+					  my_seekOrDie(f_out, ii_seek_o, SEEK_SET);
+					if ( ! ii_write_len % sz_input ) {
+						ii_count_o = fwrite(&(((char *)buf)[ii_buf_pos]), ii_write_len, 1, f_out) * sz_input;
+					} else {
+						ii_count_o = fwrite(&(((char *)buf)[ii_buf_pos]), 1, ii_write_len, f_out);
+					}
+					ii_seek_o += ii_count_o;
 				} else {
-					ii_count_o = fwrite(buf, 1, ii_count_i, f_out);
+					// Finish writing current file, shift the buffer allow the next loop to catch up.
+					ii_count_o = fwrite(&(((char *)buf)[ii_buf_pos]), 1, ii_seek_max - ii_seek_o, f_out);
+					ii_seek_o += ii_count_o;
 				}
-				ii_seek_o += ii_count_o;
-			} else {
-				// Finish writing current file, shift the buffer allow the next loop to catch up.
-				ii_count_o = fwrite(buf, 1, ii_seek_max - ii_seek_o, f_out);
-				ii_seek_o += ii_count_o;
+				if (ferror(f_out)) {
+					// investigate and report error
+					if (!feof(f_out)) perror(*argv);
+					fprintf(stderr, "Could not write at in %ld out %ld: errno: %d = %s\n", ii_seek_i, ii_seek_o, errno, strerror(errno));
+					// exit(1);
+				}
+				if (ii_seek_o == ii_seek_max) {
+					fclose(f_out);
+#ifdef DEBUG
+	fprintf(f_err, "Opening output: %s\n", *argv);
+#endif
+					f_out = my_fopen(*argv, "w");
+					argv++;
+					if (arg_sizeList != NULL && *arg_sizeList != '\0') // AKA != 0
+						ii_seek_max = (size_t) strtoll(arg_sizeList, &arg_sizeList, 0);
+					if (arg_sizeList != NULL && *arg_sizeList != '\0') // AKA != 0
+						arg_sizeList++;
+					ii_seek_o = 0;
+					md_copy = 0;
+				} else if (ii_count_o == ii_write_len) md_copy = 0;
 			}
-			if (ferror(f_out)) {
-				// investigate and report error
-				if (!feof(f_out)) perror(*argv);
-				fprintf(stderr, "Could not write at in %ld out %ld: errno: %d = %s\n", ii_seek_i, ii_seek_o, errno, strerror(errno));
-				// exit(1);
-			}
-			if (ii_seek_o == ii_seek_max) {
-				ii_count_i -= ii_count_o;
-				memmove(buf, (const void *) &( ((char *)buf) [ii_count_o]), ii_count_i);
-				fclose(f_out);
-				f_out = my_fopen(*argv, "w");
-				argv++;
-				if (arg_sizeList != NULL) // AKA != 0
-					ii_seek_max = (size_t) strtoll(arg_sizeList, &arg_sizeList, 0);
-				if (arg_sizeList != NULL) // AKA != 0
-					arg_sizeList++;
-				ii_seek_o = 0;
-				ii_count_o = 0;
-				md_copy = ii_count_i > 0;
-			}
-			if (ii_count_o = ii_count_i) md_copy = 0;
 		}
 #ifdef DEBUG
-		if (ii_seek_o != ii_seek_i) {
+		if ( arg_sizeList == NULL && ii_seek_o != ii_seek_i) {
 			fprintf(stderr, "Desynced %ld vs %ld\n", ii_seek_i, ii_seek_o);
 			exit(1);
 		}
