@@ -9,12 +9,26 @@
 
 /*
 gcc -o sparse sparse.c && { \
-./sparse -o512i$((1024*1024))p sparse sparse.o ; diff sparse sparse.o ; echo $? ; \
-./sparse -o512i64pl 512,768,4096 sparse sparse.1 sparse.2 sparse.3 sparse.4 sparse.5 sparse.6 sparse.7 sparse.8 sparse.9 ; cat sparse.[1-9] | diff sparse - ; echo $? ; \
-./sparse -o512i65pl 512,768,4096 sparse sparse.1 sparse.2 sparse.3 sparse.4 sparse.5 sparse.6 sparse.7 sparse.8 sparse.9 ; cat sparse.[1-9] | diff sparse - ; echo $? ; \
-./sparse -o513i64pl 512,768,4096 sparse sparse.1 sparse.2 sparse.3 sparse.4 sparse.5 sparse.6 sparse.7 sparse.8 sparse.9 ; cat sparse.[1-9] | diff sparse - ; echo $? ; }
-ls -l
-rm sparse.o sparse.[1-9]
+echo Testing against a file without holes; \
+./sparse -o512i$((1024*1024))p sparse sparse.o ; diff sparse sparse.o ; echo $? one-to-one; \
+./sparse -o512i64pl 512,768,4096 sparse sparse.1 sparse.2 sparse.3 > sparse.4 ; cat sparse.[1-9] | diff sparse - ; echo $? stdout ; \
+./sparse -o512i64pl 512,768,4096 sparse sparse.1 sparse.2 sparse.3 sparse.4 sparse.5 sparse.6 sparse.7 sparse.8 sparse.9 ; cat sparse.[1-9] | diff sparse - ; echo $? itr1; \
+./sparse -o512i65pl 512,768,4096 sparse sparse.1 sparse.2 sparse.3 sparse.4 sparse.5 sparse.6 sparse.7 sparse.8 sparse.9 ; cat sparse.[1-9] | diff sparse - ; echo $? itr2; \
+./sparse -o513i64pl 512,768,4096 sparse sparse.1 sparse.2 sparse.3 sparse.4 sparse.5 sparse.6 sparse.7 sparse.8 sparse.9 ; cat sparse.[1-9] | diff sparse - ; echo $? itr3; \
+ls -sl ; rm sparse.o sparse.[1-9] ; \
+echo Generating a temp file with holes using truncate; \
+truncate -s8M sparse.test ; \
+dd if=/dev/urandom of=sparse.test bs=1b count=7 seek=4 ; \
+dd if=/dev/urandom of=sparse.test bs=1b count=3 seek=400 ; \
+dd if=/dev/urandom of=sparse.test bs=1b count=18 seek=8000 ; \
+dd if=/dev/urandom of=sparse.test bs=1b count=1 seek=16380 ; \
+echo Running on the temp-file. ; \
+./sparse -o512i$((1024*1024))p sparse.test sparse.o ; diff sparse sparse.o ; echo $? one-to-one; \
+./sparse -o512i64pl 512,768,$((1024*1024*2)) sparse.test sparse.1 sparse.2 sparse.3 sparse.4 sparse.5 sparse.6 sparse.7 sparse.8 sparse.9 ; cat sparse.[1-9] | diff sparse - ; echo $? itr1; \
+./sparse -o512i65pl 512,768,$((1024*1024*2)) sparse.test sparse.1 sparse.2 sparse.3 sparse.4 sparse.5 sparse.6 sparse.7 sparse.8 sparse.9 ; cat sparse.[1-9] | diff sparse - ; echo $? itr2; \
+./sparse -o513i64pl 512,768,$((1024*1024*2)) sparse.test sparse.1 sparse.2 sparse.3 sparse.4 sparse.5 sparse.6 sparse.7 sparse.8 sparse.9 ; cat sparse.[1-9] | diff sparse - ; echo $? itr3; }
+ls -sl
+rm sparse.o sparse.[1-9] sparse.test
 */
 
 FILE*
@@ -36,19 +50,24 @@ my_nextListFile(FILE **f_out, char ***argv, char **sList, size_t *smax) {
 #ifdef DEBUG
 	fprintf(stderr, "Opening output: %s", **argv);
 #endif
-	*f_out = my_fopen(**argv, "w");
-	if (*f_out == NULL) {
+	if (**argv == NULL) {
 		*smax = SIZE_MAX;
 		*f_out = stdout;
 	} else {
-		if (*sList != NULL && **sList != '\0')
-			*smax = strtoll(*sList, sList, 0);
-		if (*sList != NULL && **sList != '\0')
-			(*sList)++;
+	*f_out = my_fopen(**argv, "w");
+		if (*f_out == NULL) {
+			*smax = SIZE_MAX;
+			*f_out = stdout;
+		} else {
+			if (*sList != NULL && **sList != '\0')
+				*smax = strtoll(*sList, sList, 0);
+			if (*sList != NULL && **sList != '\0')
+				(*sList)++;
 #ifdef DEBUG
-		fprintf(stderr, " with max %lu", *smax);
+			fprintf(stderr, " with max %lu", *smax);
 #endif
-		(*argv)++;
+			(*argv)++;
+		}
 	}
 #ifdef DEBUG
 	fprintf(stderr, "\n");
