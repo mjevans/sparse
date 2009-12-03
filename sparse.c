@@ -8,11 +8,11 @@
 // #define DEBUG 1
 
 /*
-gcc -o sparse sparse.c
-./sparse -o512i$((1024*1024))p sparse sparse.o ; diff sparse sparse.o ; echo $? ;
-./sparse -o512i64pl 512,768,4096 sparse sparse.1 sparse.2 sparse.3 sparse.4 sparse.5 sparse.6 sparse.7 sparse.8 sparse.9 ; cat sparse.[1-9] | diff sparse - ; echo $?
-./sparse -o512i65pl 512,768,4096 sparse sparse.1 sparse.2 sparse.3 sparse.4 sparse.5 sparse.6 sparse.7 sparse.8 sparse.9 ; cat sparse.[1-9] | diff sparse - ; echo $?
-./sparse -o513i64pl 512,768,4096 sparse sparse.1 sparse.2 sparse.3 sparse.4 sparse.5 sparse.6 sparse.7 sparse.8 sparse.9 ; cat sparse.[1-9] | diff sparse - ; echo $?
+gcc -o sparse sparse.c && { \
+./sparse -o512i$((1024*1024))p sparse sparse.o ; diff sparse sparse.o ; echo $? ; \
+./sparse -o512i64pl 512,768,4096 sparse sparse.1 sparse.2 sparse.3 sparse.4 sparse.5 sparse.6 sparse.7 sparse.8 sparse.9 ; cat sparse.[1-9] | diff sparse - ; echo $? ; \
+./sparse -o512i65pl 512,768,4096 sparse sparse.1 sparse.2 sparse.3 sparse.4 sparse.5 sparse.6 sparse.7 sparse.8 sparse.9 ; cat sparse.[1-9] | diff sparse - ; echo $? ; \
+./sparse -o513i64pl 512,768,4096 sparse sparse.1 sparse.2 sparse.3 sparse.4 sparse.5 sparse.6 sparse.7 sparse.8 sparse.9 ; cat sparse.[1-9] | diff sparse - ; echo $? ; }
 ls -l
 rm sparse.o sparse.[1-9]
 */
@@ -28,6 +28,20 @@ my_fopen(const char *n, const char *m) {
 		exit(err);
 	}
 	return f;
+}
+
+void
+my_nextListFile(FILE **f_out, char ***argv, char **sList, size_t *seek) {
+	if (*f_out) fclose(*f_out);
+#ifdef DEBUG
+	fprintf(stderr, "Opening output: %s\n", **argv);
+#endif
+	*f_out = my_fopen(**argv, "w");
+	(*argv)++;
+	if (*sList != NULL && **sList != '\0') // AKA != 0
+		*seek = strtoll(*sList, sList, 0);
+	if (*sList != NULL && **sList != '\0') // AKA != 0
+		(**sList)++;
 }
 
 int
@@ -134,15 +148,8 @@ end_args:
 		buf = &arg;
 	}
 
-#ifdef DEBUG
-	fprintf(f_err, "Opening output: %s\n", *argv);
-#endif
-	f_out = my_fopen(*argv, "w");
-	argv++;
-	if (arg_sizeList != NULL && *arg_sizeList != '\0') // AKA != 0
-		ii_seek_max = (size_t) strtoll(arg_sizeList, &arg_sizeList, 0);
-	if (arg_sizeList != NULL && *arg_sizeList != '\0') // AKA != 0
-		arg_sizeList++;
+	f_out = NULL;
+	my_nextListFile(&f_out, &argv, &arg_sizeList, &ii_seek_max);
 	
 	while (!feof(f_in)) {
 		// Step 1/2: Read Buffer
@@ -172,16 +179,7 @@ end_args:
 					if (!ii_count_o)
 					  fprintf(stderr, "Write error for last 0-byte section of %s.", *(argv - 1));
 					ii_seek_o = ii_seek_o + ii_write_len - ii_seek_max;
-					fclose(f_out);
-#ifdef DEBUG
-	fprintf(f_err, "Opening output: %s\n", *argv);
-#endif
-					f_out = my_fopen(*argv, "w");
-					argv++;
-					if (arg_sizeList != NULL && *arg_sizeList != '\0') // AKA != 0
-						ii_seek_max = (size_t) strtoll(arg_sizeList, &arg_sizeList, 0);
-					if (arg_sizeList != NULL && *arg_sizeList != '\0') // AKA != 0
-						arg_sizeList++;
+					my_nextListFile(&f_out, &argv, &arg_sizeList, &ii_seek_max);
 				}
 				ii_count_o = ii_count_i;
 			}
@@ -207,16 +205,7 @@ end_args:
 					// exit(1);
 				}
 				if (ii_seek_o == ii_seek_max) {
-					fclose(f_out);
-#ifdef DEBUG
-	fprintf(f_err, "Opening output: %s\n", *argv);
-#endif
-					f_out = my_fopen(*argv, "w");
-					argv++;
-					if (arg_sizeList != NULL && *arg_sizeList != '\0') // AKA != 0
-						ii_seek_max = (size_t) strtoll(arg_sizeList, &arg_sizeList, 0);
-					if (arg_sizeList != NULL && *arg_sizeList != '\0') // AKA != 0
-						arg_sizeList++;
+					my_nextListFile(&f_out, &argv, &arg_sizeList, &ii_seek_max);
 					ii_seek_o = 0;
 					md_copy = 0;
 				} else if (ii_count_o == ii_write_len) md_copy = 0;
