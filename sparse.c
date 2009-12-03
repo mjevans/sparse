@@ -31,17 +31,28 @@ my_fopen(const char *n, const char *m) {
 }
 
 void
-my_nextListFile(FILE **f_out, char ***argv, char **sList, size_t *seek) {
+my_nextListFile(FILE **f_out, char ***argv, char **sList, size_t *smax) {
 	if (*f_out) fclose(*f_out);
 #ifdef DEBUG
-	fprintf(stderr, "Opening output: %s\n", **argv);
+	fprintf(stderr, "Opening output: %s", **argv);
 #endif
 	*f_out = my_fopen(**argv, "w");
-	(*argv)++;
-	if (*sList != NULL && **sList != '\0') // AKA != 0
-		*seek = strtoll(*sList, sList, 0);
-	if (*sList != NULL && **sList != '\0') // AKA != 0
-		(**sList)++;
+	if (*f_out == NULL) {
+		*smax = SIZE_MAX;
+		*f_out = stdout;
+	} else {
+		if (*sList != NULL && **sList != '\0')
+			*smax = strtoll(*sList, sList, 0);
+		if (*sList != NULL && **sList != '\0')
+			(*sList)++;
+#ifdef DEBUG
+		fprintf(stderr, " with max %lu", *smax);
+#endif
+		(*argv)++;
+	}
+#ifdef DEBUG
+	fprintf(stderr, "\n");
+#endif
 }
 
 int
@@ -68,7 +79,6 @@ main(int argc, char **argv) {
 	void *buf;
 
 	f_in = stdin;
-	f_out = stdout;
 	f_err = stderr;
 
 	// If 'split' -l is assumed.
