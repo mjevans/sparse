@@ -17,16 +17,16 @@ echo Testing against a file without holes; \
 ./sparse -o513i64pl 512,768,4096 sparse sparse.1 sparse.2 sparse.3 sparse.4 sparse.5 sparse.6 sparse.7 sparse.8 sparse.9 ; cat sparse.[1-9] | diff sparse - ; echo $? itr3; \
 ls -sl ; rm sparse.o sparse.[1-9] ; \
 echo Generating a temp file with holes using truncate; \
-truncate -s8M sparse.test ; \
 dd if=/dev/urandom of=sparse.test bs=1b count=7 seek=4 ; \
 dd if=/dev/urandom of=sparse.test bs=1b count=3 seek=400 ; \
 dd if=/dev/urandom of=sparse.test bs=1b count=18 seek=8000 ; \
 dd if=/dev/urandom of=sparse.test bs=1b count=1 seek=16380 ; \
+truncate -s8M sparse.test ; \
 echo Running on the temp-file. ; \
-./sparse -o512i$((1024*1024))p sparse.test sparse.o ; diff sparse sparse.o ; echo $? one-to-one; \
-./sparse -o512i64pl 512,768,$((1024*1024*2)) sparse.test sparse.1 sparse.2 sparse.3 sparse.4 sparse.5 sparse.6 sparse.7 sparse.8 sparse.9 ; cat sparse.[1-9] | diff sparse - ; echo $? itr1; \
-./sparse -o512i65pl 512,768,$((1024*1024*2)) sparse.test sparse.1 sparse.2 sparse.3 sparse.4 sparse.5 sparse.6 sparse.7 sparse.8 sparse.9 ; cat sparse.[1-9] | diff sparse - ; echo $? itr2; \
-./sparse -o513i64pl 512,768,$((1024*1024*2)) sparse.test sparse.1 sparse.2 sparse.3 sparse.4 sparse.5 sparse.6 sparse.7 sparse.8 sparse.9 ; cat sparse.[1-9] | diff sparse - ; echo $? itr3; }
+./sparse -o512i$((1024*1024))p sparse.test sparse.o ; diff sparse.test sparse.o ; echo $? one-to-one; \
+./sparse -o512i64pl 512,768,$((1024*1024*2)) sparse.test sparse.1 sparse.2 sparse.3 sparse.4 sparse.5 sparse.6 sparse.7 sparse.8 sparse.9 ; cat sparse.[1-9] | diff sparse.test - ; echo $? itr1; \
+./sparse -o512i65pl 512,768,$((1024*1024*2)) sparse.test sparse.1 sparse.2 sparse.3 sparse.4 sparse.5 sparse.6 sparse.7 sparse.8 sparse.9 ; cat sparse.[1-9] | diff sparse.test - ; echo $? itr2; \
+./sparse -o513i64pl 512,768,$((1024*1024*2)) sparse.test sparse.1 sparse.2 sparse.3 sparse.4 sparse.5 sparse.6 sparse.7 sparse.8 sparse.9 ; cat sparse.[1-9] | diff sparse.test - ; echo $? itr3; }
 ls -sl
 rm sparse.o sparse.[1-9] sparse.test
 */
@@ -192,16 +192,19 @@ end_args:
 		for (ii_buf_pos = 0 ; ii_buf_pos < ii_count_i; ii_buf_pos += ii_count_o) {
 			md_copy=0;	// Reuse md_copy as a state variable
 			for (ii_count_o = 0; ii_count_o < sz_output; ii_count_o++) {
-				if ( ((char *)buf)[ii_count_o] != '\0' ) {
+				if ( ((char *)buf)[ii_buf_pos + ii_count_o] != '\0' ) {
 					md_copy=1;
 					break;
 				}
 			}
 			ii_write_len = ii_count_i - ii_buf_pos;
 			if (ii_write_len > sz_output) ii_write_len = sz_output;
+#ifdef DEBUG
+	fprintf(f_err, "Write %hu: %lx > %lx bpos:%lu len:%lu\n", md_copy, ii_seek_i, ii_seek_o, ii_buf_pos, ii_write_len);
+#endif // DEBUG
 			if (!md_copy) {
 				if (ii_seek_o + ii_write_len < ii_seek_max) {
-					ii_seek_o += ii_count_i;
+					ii_seek_o += ii_write_len;
 				} else {
 					my_seekOrDie(f_out, ii_seek_max - 1, SEEK_SET);
 					ii_count_o = fwrite(buf, 1, 1, f_out);
@@ -210,7 +213,7 @@ end_args:
 					ii_seek_o = ii_seek_o + ii_write_len - ii_seek_max;
 					my_nextListFile(&f_out, &argv, &arg_sizeList, &ii_seek_max);
 				}
-				ii_count_o = ii_count_i;
+				ii_count_o = ii_write_len;
 			}
 			while (md_copy) {
 				if (ii_seek_o + ii_write_len <= ii_seek_max) {
