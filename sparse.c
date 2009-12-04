@@ -161,6 +161,15 @@ main(int argc, char **argv) {
 				break;
 			default:
 				fprintf(f_err, "Unknown option %c\n", arg[0]);
+			case 'h': // help
+				fprintf(f_err, "Usage: %s [OPTION]... [FILE]...\n"
+					"Sparsely copy input to one or more output files.\n\n"
+					"\t-p\tcoPy out of the first file instead of stdin.\n"
+					"\t-i\tInput block max size\n"
+					"\t-o\tOutput block max size (this is how large a string of zeros skip writing)\n"
+					"\t-t\tTruncate trailing zero pad (if any, for last file only)\n"
+					"\t-l\ttake the very first option after the flag set as a comma seperated List of filesizes, the last size being reused for all subsiquent files (except stdout)\n"
+					, *(argv - 1));
 				break;
 			}
 			if (arg[0] == '\0') break;
