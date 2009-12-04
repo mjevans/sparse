@@ -1,0 +1,29 @@
+.\" Process this file with
+.\" groff -man -Tascii sparse.man.1
+.\"
+.TH SPARSE 1 "DECEMBER 2009" Linux "User Manuals"
+.SH NAME
+sparse \- Produce one or more sparse files from an input stream.
+.SH SYNOPSIS
+.BI "sparse [-[p][i[" "size" "]][o[" "size" "]][t][l" " list" "]] [" "... file" "]"
+.BR
+.SH DESCRIPTION
+.B sparse
+operates on stdin and stdout by default; however it is generally not useful to attempt re-writing sparsely to stdout.  Sparsely writting files/block devices takes less time by skipping over unused sections.  When written to a filesystem that supports sparse files the missing sections are zero-filled.  When writing to a block device the missing sections are not filled by the write process.  For that reason, when writing a filesystem to a block device, it is critical that the input and output sizes are set to equal to or greater than the filesystem's native block size.
+.SH OPTIONS
+.IP -p
+coPy out of the first file instead of stdin.
+.IP -i
+Input block max size
+.IP -o
+Output block max size (this is how large a string of zeros skip writing)
+.IP -t
+Truncate trailing zero pad (if any, for last file only)
+.IP -l
+take the very first option after the flag set as a comma seperated List of filesizes, the last size being reused for all subsiquent files (except stdout)
+.SH DIAGNOSTICS
+Will exit with the errno value of any errors encountered during write operations.
+.SH BUGS
+Please report any to the current author.
+.SH AUTHOR
+Michael J Evans <m.j.evans.1983 at gmail dot com> 
