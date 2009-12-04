@@ -6,12 +6,12 @@
 sparse \- Produce one or more sparse files from an input stream.
 .SH SYNOPSIS
 .BI "sparse [-[p][i[" "size" "]][o[" "size" "]][t]] [" "file" "]..."
-
+.PP
 .BI "sparse [-[p][i[" "size" "]][o[" "size" "]][t]]l" " size,list" " [" "file" "]..."
 .SH DESCRIPTION
 .B sparse
 operates on stdin and stdout by default; however it is generally not useful to attempt re-writing sparsely to stdout.  Sparsely writting files/block devices takes less time by skipping over unused sections.  When written to a filesystem that supports sparse files the missing sections are zero-filled.  When writing to a block device the missing sections are not filled by the write process.  For that reason, when writing a filesystem to a block device, it is critical that the input and output sizes are set to equal to or greater than the filesystem's native block size.
-.SH OPTIONS
+.SS OPTIONS
 .IP -p
 coPy out of the first file instead of stdin.
 .IP -i
@@ -24,6 +24,14 @@ Truncate trailing zero pad (if any, for last file only)
 take the very first option after the flag set as a comma seperated List of filesizes, the last size being reused for all subsiquent files (except stdout)
 .SH DIAGNOSTICS
 Will exit with the errno value of any errors encountered during write operations.
+.SH EXAMPLES
+Split some input source in to several whole-dvd (roughly) sized files, any excess information sent via stdout in to dvdsplit.overflow.
+.PP
+ ... | sparse -l $((1024*1024*4440)) dvdsplit.1 dvdsplit.2 dvdsplit.3 dvdsplit.4 dvdsplit5 > dvdsplit.overflow
+.PP
+Or split for mailing/limited posting areas; the first a smaller size.
+.PP
+ ... | sparse -l $((1024*1024*9 + 1024*768)),$((1024*1024*10)) mail.1 mail.2 mail.3 mail.4 mail.5 mail.6 mail.7 > mail.overflow
 .SH BUGS
 Please report any to the current author.
 .SH AUTHOR
