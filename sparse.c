@@ -8,6 +8,9 @@
 // #define DEBUG 1
 
 /*
+
+// Unit Tests
+
 gcc -o sparse sparse.c && { \
 echo Testing against a file without holes; \
 ./sparse -o512i$((1024*1024))p sparse sparse.o ; diff sparse sparse.o ; echo $? one-to-one; \
@@ -29,6 +32,24 @@ echo Running on the temp-file. ; \
 ./sparse -o513i64pl 512,768,$((1024*1024*2)) sparse.test sparse.1 sparse.2 sparse.3 sparse.4 sparse.5 sparse.6 sparse.7 sparse.8 sparse.9 ; cat sparse.[1-9] | diff sparse.test - ; echo $? itr3; }
 ls -sl
 rm sparse.o sparse.[1-9] sparse.test
+
+// Tuning Tests
+
+for blkin in 512 4096 $((1024*256)) $((1024*512)) $((1024*1024)) $((1024*1024*4)) ; do \
+  for blkout in 512 4096 $((1024*256)) $((1024*512)) $((1024*1024)) $((1024*1024*4)) ; do \
+    echo "-i${blkin}-o${blkout}" | tee -a log;\
+    md5sum -b src | sed 's/src/dst/' > dst.md5 ;\
+    time ./sparse -i${blkin}o${blkout}p src dst 2>&1 | tee -a log ;\
+    md5sum -c dst.md5  2>&1 | tee -a log ; rm dst;\
+  done ;\
+done ; rm dst.md5
+
+General observations:
+Operating at filesystem block sizes for input and output is fastest (on my system).
+Operating at hardware block sizes for output is only -slightly- slower.
+Given the need to scan over each chunk operating at or beneath a single page of memory seems to work better on my system.
+Given the two choices, 4096:4096 and 4096:512, the first seems a better default.
+It's slightly faster and when operating on actual block devices, instead of files, would better work for -most- filesystem images.
 */
 
 FILE*
@@ -91,7 +112,7 @@ int
 main(int argc, char **argv) {
 	char *arg, *arg_sizeList = 0;
 	short int md_copy = 0, md_skipPad = 0;
-	size_t sz_input = 0, sz_output = 0, ii_count_i = 0, ii_count_o = 0,
+	size_t sz_input = 4096, sz_output = 4096, ii_count_i = 0, ii_count_o = 0,
 		ii_seek_i = 0, ii_seek_o = 0, ii_seek_max = SIZE_MAX,
 		ii_buf_pos, ii_tmp, ii_write_len;
 	FILE *f_in, *f_out, *f_err;
@@ -114,14 +135,14 @@ main(int argc, char **argv) {
 				md_skipPad = 1;
 				break;
 			case 'i': // Max input buffer (default 512 if set)
-				sz_input = 512;
+				sz_input = 4096;
 				if (arg[1] >= '0' && arg[1] <= '9') {
 					sz_input = (size_t) strtoll(&(arg[1]), &arg, 0);
 					arg--;
 				}
 				break;
 			case 'o': // Max output buffer (1==special default to block)
-				sz_output = 1;
+				sz_output = 4096;
 				if (arg[1] >= '0' && arg[1] <= '9') {
 					sz_output = (size_t) strtoll(&(arg[1]), &arg, 0);
 					arg--;
