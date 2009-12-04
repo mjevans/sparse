@@ -8,10 +8,26 @@
 // #define DEBUG 1
 
 /*
+Sparse - 
+Copyright 2009 by Michael J Evans <mjevans 1983 at gmail dot com> GPG: 3EFEEFA4
+*/
+static char gnu[] = "    This program is free software: you can redistribute it and/or modify\n\
+    it under the terms of the GNU General Public License as published by\n\
+    the Free Software Foundation, either version 3 of the License, or\n\
+    (at your option) any later version.\n\
+\n\
+    This program is distributed in the hope that it will be useful,\n\
+    but WITHOUT ANY WARRANTY; without even the implied warranty of\n\
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the\n\
+    GNU General Public License for more details.\n\
+\n\
+    You should have received a copy of the GNU General Public License\n\
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.\n";
 
-// Unit Tests
+/*
+// Unit Tests (using -O3 to encourage unclear code to break)
 
-gcc -o sparse sparse.c && { \
+gcc -O3 -o sparse sparse.c && { \
 echo Testing against a file without holes; \
 ./sparse -o512i$((1024*1024))p sparse sparse.o ; diff sparse sparse.o ; echo $? one-to-one; \
 ./sparse -o512i64pl 512,768,4096 sparse sparse.1 sparse.2 sparse.3 > sparse.4 ; cat sparse.[1-9] | diff sparse - ; echo $? stdout ; \
@@ -162,14 +178,17 @@ main(int argc, char **argv) {
 			default:
 				fprintf(f_err, "Unknown option %c\n", arg[0]);
 			case 'h': // help
-				fprintf(f_err, "Usage: %s [OPTION]... [FILE]...\n"
+				fprintf(f_err,
+					"sparse version 0.0.1\tCopyright (C) 2009\tMichael J Evans\n"
+					"%s\n"
+					"Usage: %s [OPTION]... [FILE]...\n"
 					"Sparsely copy input to one or more output files.\n\n"
 					"\t-p\tcoPy out of the first file instead of stdin.\n"
 					"\t-i\tInput block max size\n"
 					"\t-o\tOutput block max size (this is how large a string of zeros skip writing)\n"
 					"\t-t\tTruncate trailing zero pad (if any, for last file only)\n"
-					"\t-l\ttake the very first option after the flag set as a comma seperated List of filesizes, the last size being reused for all subsiquent files (except stdout)\n"
-					, *(argv - 1));
+					"\t-l\ttake the very first option after the flag set as a comma seperated List of filesizes, the last size being reused for all subsiquent files (except stdout)\n\n"
+					, gnu, *(argv - 1));
 				exit(1);
 				break;
 			}
@@ -294,6 +313,7 @@ end_args:
 #ifdef DEBUG
 	fprintf(stderr, "Final %ld\t: %ld vs\n      %ld\t: %ld\n", ii_seek_i, ftell(f_in), ii_seek_o, ftell(f_out));
 #endif
+	if (buf) free(buf);
 	fclose(f_out);
 	fclose(f_in);
 //	fclose(f_err);
