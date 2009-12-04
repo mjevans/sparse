@@ -170,6 +170,7 @@ main(int argc, char **argv) {
 					"\t-t\tTruncate trailing zero pad (if any, for last file only)\n"
 					"\t-l\ttake the very first option after the flag set as a comma seperated List of filesizes, the last size being reused for all subsiquent files (except stdout)\n"
 					, *(argv - 1));
+				exit(1);
 				break;
 			}
 			if (arg[0] == '\0') break;
