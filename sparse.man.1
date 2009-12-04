@@ -5,8 +5,9 @@
 .SH NAME
 sparse \- Produce one or more sparse files from an input stream.
 .SH SYNOPSIS
-.BI "sparse [-[p][i[" "size" "]][o[" "size" "]][t][l" " list" "]] [" "... file" "]"
-.BR
+.BI "sparse [-[p][i[" "size" "]][o[" "size" "]][t]] [" "file" "]..."
+
+.BI "sparse [-[p][i[" "size" "]][o[" "size" "]][t]]l" " size,list" " [" "file" "]..."
 .SH DESCRIPTION
 .B sparse
 operates on stdin and stdout by default; however it is generally not useful to attempt re-writing sparsely to stdout.  Sparsely writting files/block devices takes less time by skipping over unused sections.  When written to a filesystem that supports sparse files the missing sections are zero-filled.  When writing to a block device the missing sections are not filled by the write process.  For that reason, when writing a filesystem to a block device, it is critical that the input and output sizes are set to equal to or greater than the filesystem's native block size.
